@@ -1,0 +1,13 @@
+"0","require(GeneralizedUmatrix)
+"
+"2","Loading required package: GeneralizedUmatrix
+"
+"2","
+Attaching package: ‘GeneralizedUmatrix’
+
+"
+"2","The following object is masked from ‘package:DataVisualizations’:
+
+    DefaultColorSequence
+
+"

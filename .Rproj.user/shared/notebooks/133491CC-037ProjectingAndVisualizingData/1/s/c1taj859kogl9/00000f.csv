@@ -1,0 +1,9 @@
+"0","GeneralizedUmatrix::plotTopographicMap("
+"0","  GeneralizedUmatrix = genUmatrixInformation$Umatrix,"
+"0","  BestMatchingUnits = genUmatrixInformation$Bestmatches,"
+"0","  BmSize = 1.2"
+"0",")"
+"2","Registered S3 method overwritten by 'rmarkdown':
+  method         from
+  print.paged_df     
+"

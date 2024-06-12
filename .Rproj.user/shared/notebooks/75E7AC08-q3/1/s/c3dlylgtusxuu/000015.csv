@@ -1,0 +1,4 @@
+"0","cc=cor(data.without_correlated)"
+"0","diag(cc)=0"
+"0","DataVisualizations::Pixelmatrix(cc,"
+"0","      main = 'Pearson Correlation')"

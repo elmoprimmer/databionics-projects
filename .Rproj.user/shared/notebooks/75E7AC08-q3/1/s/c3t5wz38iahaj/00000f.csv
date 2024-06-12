@@ -1,0 +1,3 @@
+"0","high_cor_features <- findCorrelation(cc, cutoff = 0.75)"
+"0","data.without_correlated <- data.current[, -high_cor_features]"
+"0","data.without_correlated <- data.without_correlated[,-1]"

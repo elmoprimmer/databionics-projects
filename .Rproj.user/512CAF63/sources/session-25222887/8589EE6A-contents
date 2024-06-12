@@ -1,0 +1,190 @@
+---
+title: "Projection And Visualization of Highdimensional Data"
+author: "Michael C. Thrun"
+date: "07 Juni 2024"
+output: 
+  ioslides_presentation:
+    smaller: true
+---
+<style>
+  slides > slide {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  }
+</style>
+```{r setup, include=FALSE}
+library(rgl)
+#library(rglwidget) #does not show any pictures in Rmarkdown if rglwidget()  is called after rgl
+setupKnitr()
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message=FALSE,
+                      webgl = TRUE,
+                      dpi=100,
+                      fig.width = 7, 
+                      fig.height = 7,
+                      fig.align='left',rgl.closewindows=TRUE
+                      )
+require(Umatrix)
+require(FCPS)
+require(DataVisualizations)
+require(ProjectionBasedClustering)
+require(GeneralizedUmatrix)
+knitr::knit_hooks$set(webgl = hook_webgl)
+```
+
+## Chainlink Visualization
+
+```{r}
+data(Chainlink)
+DataVisualizations::Plot3D(
+  Chainlink$Data,
+  Chainlink$Cls,
+  type = 's',
+  radius = 0.1,
+  box = F,
+  aspect = T,
+  top = T
+)
+rgl::grid3d(c("x", "y", "z"))
+```
+
+## Select Projection
+- For example Neighbor Retrieval Visualizer (NeRV)
+- NeRV conceptualizes the task of nonlinear projection for information visualization as neighbor retrieval and formulated as an information retrieval problem. 
+- The the global objective measures the total cost of misses and false positive
+    - Simplified: lambda is the weighting parameter between misses and false positives
+
+```{r, warning=FALSE,message=F}
+projection=ProjectionBasedClustering::NeRV(
+  Data = Chainlink$Data)
+```
+
+## Simple Plotting of BMUs
+- Bestmatches can be interpreted as the projected points of high-dimensional data
+- Plotting ignores other neurons which are not BMUs and plots only BMUs
+- Are there two clusters visible or one cluster structure?
+    - Thats challenging to decide here
+    
+```{r,fig.show=T}
+ggobj=ProjectionBasedClustering::PlotProjectedPoints(
+  projection,
+  BMUorProjected = F,
+  main = 'Plot of Neural map, marked are BMUs')
+```
+
+## Visualzing Results
+1. Compute U-matrix
+2. Plot U-matrix with an algorithm, like the topographic map
+
+=> Emergent high-dimensional structures are now visible even if we do not use a prior classification
+
+
+```{r,webgl=TRUE,fig.keep="none",message=FALSE,results='hide'}
+genUmatrixInformation = GeneralizedUmatrix::GeneralizedUmatrix(
+  Data = Chainlink$Data,
+  ProjectedPoints = projection,
+  PlotIt = FALSE
+)
+```
+
+## Topographic Map
+- Without the visualization the two clusters would not be visible
+
+```{r,fig.keep='high',fig.show='asis'}
+GeneralizedUmatrix::plotTopographicMap(
+  GeneralizedUmatrix = genUmatrixInformation$Umatrix,
+  BestMatchingUnits = genUmatrixInformation$Bestmatches,
+  BmSize = 1.2
+)
+```
+
+## Projection-based Clustering
+ - Structure type is a Boolean that has to be set by the user
+ - Try both types out and see which clustering overlay better with the topographic map
+ 
+```{r,webgl=TRUE, message=FALSE,warning=FALSE}
+Cls=ProjectionBasedClustering::ProjectionBasedClustering(
+  k = 2,
+  Data = Chainlink$Data,
+  BestMatches = genUmatrixInformation$Bestmatches,
+  LC = c(genUmatrixInformation$Lines,
+         genUmatrixInformation$Columns),
+  StructureType = F
+  )
+
+GeneralizedUmatrix::plotTopographicMap(
+  genUmatrixInformation$Umatrix,   
+  genUmatrixInformation$Bestmatches,
+  BmSize = 1.2,
+  Cls = Cls
+)
+```
+
+## Second Example: Wine Data
+
+- With this normalization no (distance-based) structure are visible!
+
+```{r,webgl=TRUE,message=FALSE,warning=FALSE}
+library(kohonen)
+data(wines)
+wines.sc = scale(wines)
+projection=ProjectionBasedClustering::tSNE(
+  Data = wines.sc,PlotIt=TRUE)
+
+genUmatrixInformation = GeneralizedUmatrix::GeneralizedUmatrix(
+  Data = wines.sc,
+  ProjectedPoints = projection$ProjectedPoints,
+  PlotIt = TRUE
+)
+genUmatrixInformation$gplotres
+```
+
+## Standardization
+- Is not trivial
+- Depends on the distance
+- e.g.: Euclidean distance is not translation invariant
+    - values above +-1 are not treated the same ways as values below +-1
+- Correlations between features mean that the Euclidean distances weights these features stronger than other features
+    - Does this make sense in this example?
+  
+```{r}  
+MDplot(wines.sc)+ggplot2::ggtitle(
+  'Is this a appropriate normalizations?')
+
+cc=cor(wines.sc)
+diag(cc)=0
+DataVisualizations::Pixelmatrix(cc,
+      main = 'Pearson Correlation')
+```
+
+```{r}  
+OtherDistance=as.matrix(parallelDist::parallelDist(
+  wines.sc,method = 'geodesic')
+  )
+OutputDim=50
+Trans=ProjectionBasedClustering::MDS(
+  DataOrDistances = OtherDistance,
+  OutputDimension = OutputDim)$ProjectedPoints
+
+DataVisualizations::Sheparddiagram(OtherDistance,
+  as.matrix(dist(Trans)),main = 
+  'Decide if relationship between distances is appropriate'
+  )
+
+V=DataVisualizations::ShepardDensityScatter(OtherDistance,
+  as.matrix(dist(Trans)),main = 
+  'Decide if relationship between distances is appropriate'
+  )
+```
+
+## Conclusion
+- Knowledge Discovery prior to projection and clustering is vital!
+- Usually algorithms use internally the Euclidean distance
+    - In this case, one has to investigate distributions and correlations among other things
+  
+- Clustering algorithms typically always cluster data
+    - see example of 031ClusteringWithSOM.Rmd
+- Generalized Umatrix + Several Projection Methods allow a look if data possess cluster structures
+    - Can be even improved with P-Matrix and U*-Matrix to distance and density based cluster structures
+    

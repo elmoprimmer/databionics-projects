@@ -1,0 +1,11 @@
+"0",""
+"0","V=DataVisualizations::ShepardDensityScatter(OtherDistance,"
+"0","  as.matrix(dist(Trans)),main = "
+"0","  'Decide if relationship between distances is appropriate'"
+"0","  )"
+"2","Subordinate clustering package (ScatterDensity) is missing. Switching to MASS::kde2d density estimation.
+            Please install the package which is defined in ""Suggests"".
+"
+"2","Subordinate clustering package (ScatterDensity) is missing. Switching to MASS::kde2d density estimation.
+            Please install the package which is defined in ""Suggests"".
+"

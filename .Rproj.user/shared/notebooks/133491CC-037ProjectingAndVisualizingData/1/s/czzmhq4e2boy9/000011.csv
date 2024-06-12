@@ -1,0 +1,9 @@
+"0","library(kohonen)"
+"0","data(wines)"
+"0","wines.sc = scale(wines)"
+"0","projection=ProjectionBasedClustering::tSNE("
+"0","  Data = wines.sc,PlotIt=TRUE)"
+"2","Loading required namespace: Rtsne
+"
+"2","Loading required namespace: parallel
+"

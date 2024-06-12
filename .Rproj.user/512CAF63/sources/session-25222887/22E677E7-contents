@@ -1,0 +1,227 @@
+---
+title: "Projection And Visualization With ESOM"
+author: "Michael C. Thrun"
+date: "07 Juni 2024"
+output: 
+  ioslides_presentation:
+    smaller: true
+---
+<style>
+  slides > slide {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  }
+</style>
+```{r setup, include=FALSE}
+library(rgl)
+#library(rglwidget) #does not show any pictures in Rmarkdown if rglwidget()  is called after rgl
+setupKnitr()
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      webgl = TRUE,
+                      dpi=100,
+                      fig.width = 7, 
+                      fig.height = 7,
+                      fig.align='left',rgl.closewindows = T
+                      )
+knitr::knit_hooks$set(webgl = hook_webgl)
+require(Umatrix)
+require(FCPS)
+require(DataVisualizations)
+require(ProjectionBasedClustering)
+require(GeneralizedUmatrix)
+```
+
+## Chainlink
+- Chainlink data set [Ultsch, 1995; Ultsch et al., 1994] consists of two clusters in R^3
+- Together, the two clusters form intricate links of a chain, and therefore, they cannot be separated by linear decision boundaries [Herrmann, 2011, pp. 99-100]
+- The rings are cohesive in R^3; however, many projections are not. 
+- This data set serves as an excellent demonstration of several challenges facing projection methods: 
+    - The data lies on two well-separated manifolds such that the global proximities contradict the local ones in the sense that the center of each ring is closer to some elements of the other cluster than to elements of its own cluster [Herrmann, 2011, pp. 99-100]. 
+  
+- The two rings are intertwined in R^3 and have the same average distances and densities. Every cluster contains 500 points.
+
+## Chainlink Visualization
+
+```{r testgl, webgl=TRUE}
+data(Chainlink)
+DataVisualizations::Plot3D(
+  Chainlink$Data,
+  Chainlink$Cls,
+  type = 's',
+  radius = 0.1,
+  box = F,
+  aspect = T,
+  top = T
+)
+rgl::grid3d(c("x", "y", "z"))
+```
+
+## Initialize Algorithm
+- Size in "Line" and "Columns" (LC) results in high amount of neurons
+- Feature map (grid)
+    - Neighborhood function
+    - Topology (arrangement of neurons on 2D map) is rectangular
+    - Toroidal: TRUE: no fixed borders in the map, see lectures
+    - Cooling of learning rate and neighbourhood are best set as lead in lead out (see lectures)
+    - Range of learning rate is defined by StartLearningRate and EndLearningRate, should be in ]1,0[ 
+    - Number of eppochs (learning time) is the interval of radius in neighborhood multiplied by number of presentations of the whole data set (DataPerEpoch
+    - Distance for bmu computation cannot be selected so far => Euclidean distance
+
+```{r, warning=FALSE}
+neuralmap = Umatrix::esomTrain(
+  Data = Chainlink$Data,
+  Columns = 80,
+  Lines = 60,
+  NeighbourhoodFunction = "mexicanhat",
+  Toroid = TRUE,
+  NeighbourhoodCooling = "Lead In Lead Out",
+  LearningRateCooling = "Lead In Lead Out",
+  StartLearningRate = 0.7,
+  EndLearningRate = 0.2,
+  StartRadius = 30, 
+  EndRadius = 2
+)
+```
+
+## Simple Plotting of BMUs
+- Best matches can be interpreted as the projected points of high-dimensional data
+- Plotting ignores other neurons which are not BMUs and plots only BMUs
+- Without using the coloring of the classification there would be nor structure visible!
+    - But, using the coloring means that this approach would be supervised which it is not
+    
+```{r}
+BMUs = neuralmap$BestMatches
+ggobj=ProjectionBasedClustering::PlotProjectedPoints(BMUs,
+         Cls = Chainlink$Cls,
+        BMUorProjected = T,
+        main = 'Plot of Neural map, marked are BMUs'
+        )
+```
+
+## Visualizing Results
+1.) Compute U-matrix that will allow us to visualise high-dimensional distances
+2.) Plot U-matrix with an algorithm, like the topographic map which is a  3D landscape with hypsometric tints based on the information stored in the U-Matrix
+
+=> Emergent high-dimensional structures will now be visible event if we do not use prior classification
+
+
+```{r, message=FALSE, webgl=TRUE}
+UmatrixInformation = Umatrix::umatrixForEsom(
+  neuralmap$Weights, 
+  Columns = 80,
+  Lines = 60,
+  Toroid = FALSE
+)
+
+GeneralizedUmatrix::plotTopographicMap(UmatrixInformation,
+                                       neuralmap$BestMatches,
+
+)
+```
+
+## Interpretation of Topographic Map
+- Hypsometric tints, i.e. heights and colour scale are chosen in such a way that
+    - small heights indicate small distances (sea level)#
+    - middle heights indicate middle distances (low hills)
+    - large heights indicate vast distances
+
+-> Valleys and basins represent clusters, and the watersheds of hills and mountains represent the borders between clusters   
+
+=> two clusters are seperated by large mountain ranges, there are only two clusters because the map is without borders (i.e. toroidal)
+
+```{r,webgl=TRUE}
+GeneralizedUmatrix::plotTopographicMap(UmatrixInformation, 
+                                       neuralmap$BestMatches, 
+                                       Cls = Chainlink$Cls,                                       
+                                       BmSize = 1.2
+)
+```
+
+## Conclusion
+- ESOM is a projection method
+- ESOM is only useful if U-Matrix is computed
+
+-> Emergent properties are visible through self-organization
+
+- Topographic map is an algorithm for visualizing the U-Matrix which enables colored 3D print of high-dimensional structures [Thrun, et. al,2016]
+   - There are other visualization algorithms, like Umatrix::plotMatrix or [Kohonen/Kaski 1997]
+
+```{r,webgl=TRUE}
+GeneralizedUmatrix::plotTopographicMap(UmatrixInformation, 
+                                       neuralmap$BestMatches, 
+                                       Cls = Chainlink$Cls
+)
+```
+
+## Outlook, what happens if you have only density based data?
+
+- only density based means that computing distances is meaningless to the problem at hand
+
+```{r,webgl=TRUE,message=F,results='hide'}
+data("EngyTime")
+ind=sample(1:nrow(EngyTime$Data),1000) #to compute rmarkdwon scrip faster, 
+#disable the sample line at home
+#this data is only based on densities an not on distances
+DataSample=EngyTime$Data[ind,]
+ClsSample=EngyTime$Cls[ind]
+
+neuralmap_dens = Umatrix::esomTrain(
+  Data = DataSample,
+  Columns = 80,
+  Lines = 60,
+  NeighbourhoodFunction = "mexicanhat",
+  Toroid = FALSE,#planar map
+  NeighbourhoodCooling = "Lead In Lead Out",
+  LearningRateCooling = "Lead In Lead Out",
+  StartLearningRate = 0.9,
+  EndLearningRate = 0.1,
+  StartRadius = 40, 
+  EndRadius = 1,Epochs = 120
+)
+#output is 	are esom weights as [1:(Lines*Columns),1:Variables], i.e., 
+# List of Weights as a matrix
+#
+#Conversion function to restructure list of neurons to 3D array 
+EsomNeurons =GeneralizedUmatrix::ListAsEsomNeurons(
+  neuralmap_dens$Weights,Lines = 60,Columns = 80
+  )
+```
+
+## For density problems you can use the P-matrix
+- Visualizes only density based structures of high-dimensional data.
+- The radius for measuring the density within the hypersphere in R^d
+    - density is measured only around adjacent datapoint
+    - adjacent: moore neighbourhood of the esom neurons
+    - measured: if euclidean distances between the weights of the neurons are smaller than radius
+- P-matrix expects the hypersphere radius as an input
+   - internal estimation does not work that well
+   - manually to estimate in a way that you see density based structures
+- Color map: the darker the red the higher the density, the more yellow and than white the lower the density
+- Search for a radius such as white ridges are clearly visible
+    
+```{r,webgl=TRUE}
+# Beware: requires EsomNeurons as [1:Lines,Columns,1:Weights] 3D array of weights 
+pmatrix=GeneralizedUmatrix::GeneratePmatrix(
+  DataSample,Radius=0.9,EsomNeurons = EsomNeurons,PlotIt=TRUE#TRUE: tiled visualization
+  )
+
+```
+
+## Outlook U*-matrix
+- Fuzzy like combination of P-matrix density values with U-matrix heights to the U-star matrix 
+- For simplicity, I set toroid=FALSE in the esom algorithm to force borders
+
+```{r,webgl=TRUE}
+UmatrixInformation4dens = Umatrix::umatrixForEsom(
+  neuralmap_dens$Weights, 
+  Columns = 80,
+  Lines = 60,
+  Toroid = FALSE
+)
+ustar=GeneralizedUmatrix::CalcUstarmatrix(UmatrixInformation4dens,pmatrix)
+GeneralizedUmatrix::plotTopographicMap(ustar, Cls =ClsSample,
+                                        neuralmap_dens$BestMatches,
+                                       BmSize = 0.5
+)
+```

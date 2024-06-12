@@ -1,0 +1,5 @@
+"0","file_path <- ""WisconsinDiagnosis.cls"""
+"0","classes <- read.table(file_path, comment.char = ""#"", sep = ""\t"", header = FALSE)"
+"0","classes <- classes[!grepl(""^%"", classes$V1), ]"
+"0","colnames(classes) <- c(""key"", ""Class"")"
+"0","head(classes)"

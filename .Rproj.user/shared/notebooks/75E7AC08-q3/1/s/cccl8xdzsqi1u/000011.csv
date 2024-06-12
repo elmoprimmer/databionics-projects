@@ -1,0 +1,2 @@
+"0","Ustarmatrix = ustarmatrixCalc(res$Umatrix, Pmatrix)"
+"0","plotMatrix(res$Umatrix, Cls = classes$Class, res$BestMatches, Toroid = T)"

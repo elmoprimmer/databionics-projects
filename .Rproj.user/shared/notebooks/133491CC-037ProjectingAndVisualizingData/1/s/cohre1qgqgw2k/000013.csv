@@ -1,0 +1,4 @@
+"0","ggobj=ProjectionBasedClustering::PlotProjectedPoints("
+"0","  projection,"
+"0","  BMUorProjected = F,"
+"0","  main = 'Plot of Neural map, marked are BMUs')"

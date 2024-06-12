@@ -1,0 +1,6 @@
+"0","BMUs = neuralmap$BestMatches"
+"0","ggobj=ProjectionBasedClustering::PlotProjectedPoints(BMUs,"
+"0","         Cls = Chainlink$Cls,"
+"0","        BMUorProjected = T,"
+"0","        main = 'Plot of Neural map, marked are BMUs'"
+"0","        )"

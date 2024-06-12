@@ -1,0 +1,4 @@
+"0","cc=cor(wines.sc)"
+"0","diag(cc)=0"
+"0","DataVisualizations::Pixelmatrix(cc,"
+"0","      main = 'Pearson Correlation')"

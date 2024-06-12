@@ -1,0 +1,8 @@
+"0","MDplot(data.without_correlated)+ggplot2::ggtitle("
+"0","  'Is this a appropriate normalizations?')"
+"2","Subordinate package (moments) is missing. Please install the package which is defined in ""Suggests"" to select this Ordering or ""RobustGaussian=TRUE"". Setting Ordering to ""Default"" and ""RobustGaussian=FALSE"".
+"
+"2","Subordinate package (diptest) is missing. Please install the package which is defined in ""Suggests"" to select this Ordering or ""RobustGaussian=TRUE"". Setting Ordering to ""Default"" and ""RobustGaussian=FALSE"".
+"
+"2","Subordinate package (diptest) is missing. Please install the package which is defined in ""Suggests"" to select this Ordering or ""RobustGaussian=TRUE"". Setting Ordering to ""Columnwise"" and ""RobustGaussian=FALSE"".
+"

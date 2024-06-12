@@ -1,0 +1,8 @@
+"0","Pmatrix = pmatrixForEsom(data.pca,"
+"0","                         res$Weights,"
+"0","                         res$Lines,"
+"0","                         res$Columns,"
+"0","                         res$Toroid)"
+"0",""
+"0","plotMatrix(Pmatrix, ColorStyle = ""Pmatrix"", Toroid = T)"
+"0",""
