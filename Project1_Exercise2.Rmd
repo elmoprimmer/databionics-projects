@@ -1,0 +1,204 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+```{r}
+library(readr)
+#install.packages('tidyverse')
+install.packages("MLmetrics")
+
+suppressWarnings(library(tidyverse))
+suppressWarnings(library(caret))
+suppressWarnings(library(ggplot2))
+suppressWarnings(library(MLmetrics))
+
+
+
+```
+First we load the data and create a plot of our dependent variable
+```{r}
+file_path_X <- 'C:/Users/cgnec/Downloads/WisconsinDiagnosislrn.sec' 
+X <- read_delim(file_path_X, delim = "\t", skip = 4, col_names = TRUE)
+names(X)[names(X) == "% Key"] <- "ID"
+
+head(X)
+
+file_path_y <- 'C:/Users/cgnec/Downloads/WisconsinDiagnosis.cls'
+
+# Read the CLS file using readLines 
+cls_content <- readLines(file_path_y)
+cls_data <- cls_content[-(1:5)]
+y <- read.table(text = cls_data, header = FALSE, sep = "\t",col.names = c("ID", "Class"))
+
+print(cls_df)
+
+X %>% str()
+X$...32 <- NULL
+X$Worst_fractal_dimension  <- as.numeric(gsub("\r", "", X$Worst_fractal_dimension ))
+ggplot(cls_df, aes(x = as.factor(Class))) +
+  geom_bar() +
+  labs(title = "Bar Plot of Class Variable",
+       x = "Class",
+       y = "Count") +
+  theme_minimal()
+```
+
+We split the data into training and testing data & convert the y-Variable to a factor, which the model expects as input
+```{r}
+y$Class <- ifelse(y$Class == 2, 'B', 'M') #Need to be conerted for later use: B:Benign, M:Malignant
+y$Class <- as.factor(y$Class)
+
+merged_df <- merge(X, y, by = "ID")
+
+# Set a seed for reproducibility
+set.seed(123)
+
+# Create a training index
+train_index <- createDataPartition(merged_df$ID, p = 0.8, list = FALSE)
+
+# Split the data into training and testing sets
+train_data <- merged_df[train_index, ]
+test_data <- merged_df[-train_index, ]
+
+# Remove the 'ID' column from training and testing sets
+train_data <- train_data[, !names(train_data) %in% "ID"]
+test_data <- test_data[, !names(test_data) %in% "ID"]
+
+# Verify the splits
+str(train_data)
+str(test_data)
+
+```
+
+```{r}
+#size: number of nodes in the hidden layer Note: There can only be one hidden layer using nnet
+#decay: weight decay. regularization parameter to avoid overfitting, which adds a penalty for complexity.
+# Range is taken from https://rpubs.com/chelseyhill/733053, which showed good results
+
+#Define our grid to search the optimal parameters for
+grids <-  expand.grid(size = seq(from = 1, 
+                                 to = 10, 
+                                 by = 1),
+                      decay = seq(from = 0,
+                                  to = 0.2,
+                                  by = 0.01))
+
+# We set up the control argument
+ctrl <- trainControl(method = "repeatedcv",
+                     number = 5, # 5 folds
+                     repeats = 3, # 3 repeats (3 is enough for good accuracy, taking 100 just takes too long)
+                     search = "grid") # grid search
+
+set.seed(831)
+
+annMod <- train(form = Class ~., # use all other variables to predict target
+                data = train_data, # training data
+                preProcess = "range", # apply min-max normalization
+                method = "nnet", # use nnet() (Software for feed-forward neural networks with a single hidden layer, and for multinomial log-linear model)
+                trControl = ctrl, 
+                tuneGrid = grids, # search over the created grid
+                trace = FALSE) # suppress output
+
+annMod
+```
+The final values used for the model were size = 8 and decay = 0.02.
+
+We now access the performance of the ANN of the training and the test data set
+```{r}
+# Evaluate Training data
+tune_tr_preds_train <- predict(object = annMod, # tuned model
+                         newdata = train_data) # training data
+
+tune_tr_conf_train <- confusionMatrix(data = tune_tr_preds_train, # predictions
+                                reference = train_data$Class, # actual
+                                positive = 'M',
+                                mode = "everything")
+
+# Evaluate Test data
+tune_tr_preds_test <- predict(object = annMod, # tuned model
+                         newdata = test_data) # testing data
+
+tune_tr_conf_test <- confusionMatrix(data = tune_tr_preds_test, # predictions
+                                reference = test_data$Class, # actual
+                                positive = 'M',
+                                mode = "everything")
+
+tune_tr_conf_train
+tune_tr_conf_test
+```
+We see that the model has an accuracy of around 0.99 on the training dataset, and an accuracy of around 0.93 on the test training data set.
+The accuracy on the training data set can be understand, that the model very accurately predicts the data from the training dataset. It even classifies all the cases, where Class = B correctly. However, if we look at the accuracy of the test set, we see that it does not so well in prediciting class B correctly in comparison to the training set. This is also captured in the Precision which is 1 in the first case and around 0.84 for the second case. The Recall however is more stable. So depending on the goal (High Precision, High Accuracy or a mix of it, we might retrain our NN to achieve these results and use a different metric then Accuracy for evaluating the best model (this is be done in the next cell). 
+In our example we are most likely interested in predicting all cases of Melign as Melign, and are less worried about correctly predicting Benign as Malgignant, as we would rather want to make sure to not exclude potential Melign cases. So we would like to minimize the Recall, which our model does quite good.
+
+In general we can say that Accuracy might not be the best metric, especially in cases of class imbalance. In such cases, metrics like precision, recall, and F1 score provide a more nuanced view of model performance. To summarize:
+
+- Precision measures the proportion of true positives among all predicted positives.
+- Recall (Sensitivity) measures the proportion of true positives among all actual positives.
+- F1 Score is the harmonic mean of precision and recall, providing a single metric that balances both concerns.
+```{r}
+
+#size: number of nodes in the hidden layer Note: There can only be one hidden layer using nnet
+#decay: weight decay. regularization parameter to avoid overfitting, which adds a penalty for complexity.
+# Range is taken from https://rpubs.com/chelseyhill/733053, which showed good results
+
+
+#Define our grid to search the optimal parameters for
+grids <-  expand.grid(size = seq(from = 1, 
+                                 to = 10, 
+                                 by = 1),
+                      decay = seq(from = 0,
+                                  to = 0.2,
+                                  by = 0.01))
+
+# We set up the control argument
+ctrl <- trainControl(method = "repeatedcv",
+                     number = 5, # 5 folds
+                     repeats = 5, # 3 repeats (3 is enough for good accuracy, taking 100 just takes too long)
+                     summaryFunction = twoClassSummary, 
+                     classProbs = TRUE,
+                     search = "grid") # grid search
+
+set.seed(831)
+
+annMod <- train(form = Class ~., # use all other variables to predict target
+                data = train_data, # training data
+                preProcess = "range", # apply min-max normalization
+                method = "nnet", # use nnet() (Software for feed-forward neural networks with a single hidden layer, and for multinomial log-linear model)
+                trControl = ctrl, 
+                tuneGrid = grids, # search over the created grid
+                trace = FALSE,
+                metric = "ROC") # suppress output
+
+annMod
+
+
+```
+In this example we use the Metric ROC do get a balance of both the Accuracy and Recall. However, the Results do not really change. To get an even better model, we would need more data (or more feature preprocessing). 
+
+```{r}
+# Evaluate Training data
+tune_tr_preds_train <- predict(object = annMod, # tuned model
+                         newdata = train_data) # training dat
+
+tune_tr_conf_train <- confusionMatrix(data = tune_tr_preds_train, # predictions
+                                reference = train_data$Class, # actual
+                                positive = 'M',
+                                mode = "everything")
+
+# Evaluate Test data
+tune_tr_preds_test <- predict(object = annMod, # tuned model
+                         newdata = test_data) # testing data
+
+tune_tr_conf_test <- confusionMatrix(data = tune_tr_preds_test, # predictions
+                                reference = test_data$Class, # actual
+                                positive = 'M',
+                                mode = "everything")
+
+tune_tr_conf_train
+tune_tr_conf_test
+
+```
+Using the ROC as a metric does not change anything in the Training set, but gives slightly worse results in the Testing set. So in this case we should probably start to get more data/ new features to improve the model further.
