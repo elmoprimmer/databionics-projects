@@ -1,0 +1,223 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+# Install if not installed
+library("devtools")
+devtools::install_github("Mthrun/dbt.DataIO")
+install.packages("caret")
+install.packages("corrplot")
+install.packages("DescTools")
+install.packages("Umatrix")
+install.packages("GeneralizedUmatrix")
+install.packages("ProjectionBasedClustering")
+install.packages("rgl")
+```
+
+## Load packages
+
+```{r}
+library(dbt.DataIO)
+library(ggplot2)
+library(caret)
+library(corrplot)
+library(DescTools)
+library(Umatrix)
+library(GeneralizedUmatrix)
+library(ProjectionBasedClustering)
+```
+
+
+# Part 1: Preprocessing
+
+## Load and Inspect the Data
+
+```{r}
+data_path <- "wine.lrn"
+data <- ReadLRN(data_path)$Data
+# first few rows of the data
+head(data)
+
+#Classes
+cls <- ReadCLS("wine.cls")$Cls
+head(cls)
+```
+
+## Summary statistics of the data
+```{r}
+summary(data)
+```
+
+
+
+# Visualize the distribution 
+# Plot histograms for each ariable
+```{r}
+par(mfrow = c(3, 5))  # Adjust layout
+for (col in colnames(data)) {
+  hist(data[, col], main = paste("Histogram of", col), xlab = col, ylab = "Frequency")
+}
+```
+One can observe that the most feature distributions are not normal but have similar scales means and std's but it is still useful to apply box-cox with the normalisation as preprocessing steps.
+
+#Box Cox and Robust Normalisation
+```{r}
+
+# Robust Scalar Normalisation
+robust_scalar<- function(x){return (x- median(x)) /(quantile(x,probs = .75)-quantile(x,probs = .25))}
+
+# Function to check normality and apply Box-Cox transformation if necessary
+transform_column <- function(column) {
+  
+  # Perform Shapiro-Wilk test for normality
+  shapiro_test <- shapiro.test(column)
+  
+  # If p-value is more than 0.05, the distribution is not normal
+  if (shapiro_test$p.value < 0.05) {
+    # Apply Box-Cox transformation
+    bc_trans <- BoxCoxTrans(column)
+    transformed_column <- predict(bc_trans, column)
+    return(robust_scalar(transformed_column))
+  } else {
+    return(robust_scalar(column))  # Return the original column if already normally distributed
+  }
+}
+
+transformed_data <- t(as.data.frame(apply(data, 1, transform_column)))
+
+par(mfrow = c(3, 5))  # Adjust layout
+for (col in colnames(normalized_data)) {
+  hist(transformed_data[, col], main = paste("Histogram of", col), xlab = col, ylab = "Frequency")
+}
+
+```
+
+
+We can observe now normalized data which is normal distributed.
+
+
+# Analyse correlations 
+
+```{r}
+library(corrplot)
+
+# Compute correlation matrix for numeric variables
+cor_matrix <- cor(transformed_data, use = "complete.obs")
+
+# Plot the correlation matrix
+corrplot(cor_matrix, method = "circle")
+```
+One can observe strong correlations (positive as well as negative) between some variables, that is why the decorreleation might be useful preprocessing step.
+
+# Decorreleation with PCA
+
+```{r}
+# Apply PCA
+pca_result <- prcomp(transformed_data, center = TRUE, scale. = TRUE)
+
+# Create a DataFrame with PCA results
+data_pca <- as.data.frame(pca_result$x)
+
+# Check deccorelation 
+cor_matrix <- cor(data_pca, use = "complete.obs")
+corrplot(cor_matrix, method = "circle")
+```
+As we can see, the data is now decorrelated
+
+# Part 2: ESOM
+
+
+```{r}
+columns <- 80
+lines <- 60
+print(data_pca)
+neuralmap = Umatrix::esomTrain(
+  Data = data.matrix(data_pca),
+  Columns = columns,
+  Lines = lines,
+  NeighbourhoodFunction = "mexicanhat",
+  Toroid = TRUE,
+  StartLearningRate = 0.8,
+  EndLearningRate = 0.05,
+  StartRadius = 40, 
+  EndRadius = 5,
+  Epochs = 200
+)
+```
+
+```{r, message=FALSE, webgl=TRUE}
+UmatrixInformation = Umatrix::umatrixForEsom(
+  neuralmap$Weights, 
+  Columns = columns,
+  Lines = lines,
+  Toroid = TRUE
+)
+
+BMUs = neuralmap$BestMatches
+ggobj=ProjectionBasedClustering::PlotProjectedPoints(BMUs,
+         Cls = cls,
+        BMUorProjected = T,
+        main = 'Plot of Neural map, marked are BMUs'
+        )
+```
+## U-Matrix
+```{r}
+UmatrixInformation = Umatrix::umatrixForEsom(
+  neuralmap$Weights, 
+  Columns = columns,
+  Lines = lines,
+  Toroid = TRUE
+)
+
+GeneralizedUmatrix::plotTopographicMap(UmatrixInformation,
+                                       neuralmap$BestMatches,
+                                       Cls = cls
+)
+```
+
+## P-Matrix
+```{r}
+neuralmap_dens = Umatrix::esomTrain(
+  Data = data.matrix(data_pca),
+  Columns = columns,
+  Lines = lines,
+  NeighbourhoodFunction = "mexicanhat",
+  Toroid = TRUE,#planar map
+  NeighbourhoodCooling = "Lead In Lead Out",
+  LearningRateCooling = "Lead In Lead Out",
+  StartLearningRate = 0.9,
+  EndLearningRate = 0.01,
+  StartRadius = 40, 
+  EndRadius = 9,
+  Epochs = 200
+)
+
+#Conversion function to restructure list of neurons to 3D array 
+EsomNeurons =GeneralizedUmatrix::ListAsEsomNeurons(
+  neuralmap_dens$Weights,Lines = lines,Columns = columns
+  )
+
+pmatrix=GeneralizedUmatrix::GeneratePmatrix(
+  data.matrix(data_pca),Radius=0.9,EsomNeurons = EsomNeurons,PlotIt=TRUE#TRUE: tiled visualization
+  )
+
+GeneralizedUmatrix::plotTopographicMap(pmatrix,
+                                       neuralmap$BestMatches,
+                                       Cls = cls
+)
+```
+```{r}
+UmatrixInformation4dens = Umatrix::umatrixForEsom(
+  neuralmap_dens$Weights, 
+  Columns = 80,
+  Lines = 60,
+  Toroid = FALSE
+)
+ustar=GeneralizedUmatrix::CalcUstarmatrix(UmatrixInformation4dens,pmatrix)
+GeneralizedUmatrix::plotTopographicMap(ustar, Cls =cls,
+                                        neuralmap_dens$BestMatches,
+                                       BmSize = 0.5
+)
+    
+```

@@ -45,37 +45,40 @@ head(data)
 ```
 
 
+```{r}
+file_path <- "WisconsinDiagnosis.cls"
+classes <- read.table(file_path, comment.char = "#", sep = "\t", header = FALSE)
+classes <- classes[!grepl("^%", classes$V1), ]
+colnames(classes) <- c("key", "Class")
+head(classes)
+```
+
 
 *Scaling and other preprocessing* 
 ```{r}
 
-scale2 <- function(x) {
-  #Scale all columns, [0,1]
+normalize <- function(x) {
   return ((x - min(x)) / (max(x) - min(x)))
 }
 
-data.sc2 <- as.data.frame(lapply(data, function(x) {
+data.nr <- as.data.frame(lapply(data, function(x) {
   if (is.numeric(x)) {
-    return(scale2(x))
+    return(normalize(x))
   } else {
     return(x)
   }
 }))
 
-data.sc2 = as.matrix(data.sc2)
+data.nr = as.matrix(data.nr)
 data.sc = scale(data)
 
 pca_result <- prcomp(data[, -1], scale. = TRUE)
 pca_transformed_data <- pca_result$x
 data.pca <- as.matrix(cbind(data[, 1], pca_transformed_data))
 
-data.current <- data.sc2 ## Using Scale2() data now
+data.current <- data.nr
 ```
-*Comments*
-We tested scaling the data with:
-- the built in scale() function that sets values approx between -2,2
-- a simple scaling function scale2() that scales data to be between 0,1 (Intuitively this works better as for euclidian distances) 
-- a quick PCA, to also help with correlation
+
 
 
 ```{r}
@@ -87,9 +90,6 @@ diag(cc)=0
 DataVisualizations::Pixelmatrix(cc,
       main = 'Pearson Correlation')
 ```
-
-*COmments*
-Many features are extremely correlated, we need to do something about them. We try PCA and removing features with correlation coefficient > cutoff.
 
 
 ```{r}
@@ -111,19 +111,13 @@ V=DataVisualizations::ShepardDensityScatter(OtherDistance,
   'Decide if relationship between distances is appropriate'
   )
 ```
-*Comments*
-Relationship appears appropriate. Values form a near straight line.
+
 
 ```{r}
 high_cor_features <- findCorrelation(cc, cutoff = 0.75)
 data.without_correlated <- data.current[, -high_cor_features]
 data.without_correlated <- data.without_correlated[,-1]
 ```
-
-*Comments*
-- Remove 1 of each pair of features with correlation > 0.75
-- This leaves us with 12 features, which seems appropriate for approx 600 data-points.
-
 
 ```{r}
 MDplot(data.without_correlated)+ggplot2::ggtitle(
@@ -134,8 +128,6 @@ diag(cc)=0
 DataVisualizations::Pixelmatrix(cc,
       main = 'Pearson Correlation')
 ```
-*Comments*
-New correlation analysis looks better.
 
 ```{r}
 OtherDistance=as.matrix(parallelDist::parallelDist(
@@ -158,24 +150,31 @@ V=DataVisualizations::ShepardDensityScatter(OtherDistance,
 ```
 
 
-```{r echo = T, results = 'hide'}
+```{r include=FALSE}
 
-res = esomTrain(Data = data.without_correlated,
+res = esomTrain(Data = data.pca,
                 Lines = 60,
-                Columns = 100,
-                Epochs = 100,
+                Columns = 80,
+                Epochs = 1000,
                 Toroid = T,
-                NeighbourhoodFunction = "mexicanhat",
-                StartLearningRate = 0.7,
+                NeighbourhoodFunction = "cone",
+                StartLearningRate = 0.9,
                 EndLearningRate = 0.01,
-                StartRadius = 40,
-                EndRadius = 4,
-                NeighbourhoodCooling = "linear",
-                LearningRateCooling = "linear",
+                StartRadius = 30,
+                EndRadius = 2,
+                NeighbourhoodCooling = "Lead In Lead Out",
+                LearningRateCooling = "Lead In Lead Out",
+                Key = data[,1],
                 UmatrixForEsom = T)
 
 ```
-
+```{r}
+ggobj=ProjectionBasedClustering::PlotProjectedPoints(
+  res$BestMatches[,-1],
+  Cls = classes$Class,
+  BMUorProjected = T,
+  main = 'Plot of Neural map, marked are BMUs')
+```
 
 ```{r, message=FALSE, webgl=TRUE}
 UmatrixInformation = Umatrix::umatrixForEsom(
@@ -187,6 +186,7 @@ UmatrixInformation = Umatrix::umatrixForEsom(
 
 GeneralizedUmatrix::plotTopographicMap(UmatrixInformation,
                                        res$BestMatches,
+                                       Cls = classes$Class,
                                        Toroid = T
 
 )
@@ -195,7 +195,7 @@ GeneralizedUmatrix::plotTopographicMap(UmatrixInformation,
 
 
 ```{r}
-Pmatrix = pmatrixForEsom(data.without_correlated,
+Pmatrix = pmatrixForEsom(data.pca,
                          res$Weights,
                          res$Lines,
                          res$Columns,
@@ -209,52 +209,17 @@ plotMatrix(Pmatrix, ColorStyle = "Pmatrix", Toroid = T)
 
 ```{r}
 Ustarmatrix = ustarmatrixCalc(res$Umatrix, Pmatrix)
+plotMatrix(res$Umatrix, Cls = classes$Class, res$BestMatches, Toroid = T)
 ```
-```{r}
-plotMatrix(Ustarmatrix, res$BestMatches, Toroid = T)
-```
-*Discussion*
-Visualization does not clearly depict clusters or structures. There is a slight valley visible down the middle, but separating BMU's into clusters would not be possible.
-
-
-
-
-
-
-
-*Assessing model*
-We import classes to visualize how well the datapoints are mapped.
-```{r}
-file_path <- "WisconsinDiagnosis.cls"
-classes <- read.table(file_path, comment.char = "#", sep = "\t", header = FALSE)
-classes <- classes[!grepl("^%", classes$V1), ]
-colnames(classes) <- c("key", "Class")
-head(classes)
-```
-
 
 
 
 ```{r}
-ggobj=ProjectionBasedClustering::PlotProjectedPoints(
-  res$BestMatches[,-1],
-  Cls = classes$Class,
-
-  BMUorProjected = T,
-  main = 'Plot of Neural map, marked are BMUs')
+cls = iClassification(res$Umatrix, res$BestMatches)
 ```
-- Plot of BMU's shows that classes have been correctly placed in clusters, but there us next to no distinction or gaps between clusters. 
 
 ```{r}
-plotMatrix(Ustarmatrix, Cls = classes$Class, res$BestMatches, Toroid = T)
+head(data.current)
 ```
-Even with ground truth classes, their separation is not clear.
 
-
-
-*Would you trust the predictions of the neural network from the previous task?*
-
-I would be wary of overfitting for the neural network. With only less than 600 samples (even less when split into test and train) and 30 features, extremely few of the possible samples are covered. We suffer from the empty space phenomenon. Ideally we would have 100^30 samples (or 100^10 after removing some features), but we are comically far from this. Moreover, with our failure to project it to three dimensions with the U Matrix, it appears that the decision is complex, and it is very possible that the problem is not well represented by these samples.
-
-However, we cannot be sure that the neural network does not actually reach the results in practice as it does on the test set. This would need to be further investigated, for example with more data.
 
