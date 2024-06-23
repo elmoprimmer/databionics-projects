@@ -87,7 +87,7 @@ transform_column <- function(column) {
 transformed_data <- t(as.data.frame(apply(data, 1, transform_column)))
 
 par(mfrow = c(3, 5))  # Adjust layout
-for (col in colnames(normalized_data)) {
+for (col in colnames(transformed_data)) {
   hist(transformed_data[, col], main = paste("Histogram of", col), xlab = col, ylab = "Frequency")
 }
 
@@ -144,6 +144,7 @@ neuralmap = Umatrix::esomTrain(
   EndRadius = 5,
   Epochs = 200
 )
+
 ```
 
 ```{r, message=FALSE, webgl=TRUE}
@@ -178,24 +179,11 @@ GeneralizedUmatrix::plotTopographicMap(UmatrixInformation,
 
 ## P-Matrix
 ```{r}
-neuralmap_dens = Umatrix::esomTrain(
-  Data = data.matrix(data_pca),
-  Columns = columns,
-  Lines = lines,
-  NeighbourhoodFunction = "mexicanhat",
-  Toroid = TRUE,#planar map
-  NeighbourhoodCooling = "Lead In Lead Out",
-  LearningRateCooling = "Lead In Lead Out",
-  StartLearningRate = 0.9,
-  EndLearningRate = 0.01,
-  StartRadius = 40, 
-  EndRadius = 9,
-  Epochs = 200
-)
+
 
 #Conversion function to restructure list of neurons to 3D array 
 EsomNeurons =GeneralizedUmatrix::ListAsEsomNeurons(
-  neuralmap_dens$Weights,Lines = lines,Columns = columns
+  neuralmap$Weights,Lines = lines,Columns = columns
   )
 
 pmatrix=GeneralizedUmatrix::GeneratePmatrix(
@@ -206,17 +194,16 @@ GeneralizedUmatrix::plotTopographicMap(pmatrix,
                                        neuralmap$BestMatches,
                                        Cls = cls
 )
-```
-```{r}
+
 UmatrixInformation4dens = Umatrix::umatrixForEsom(
-  neuralmap_dens$Weights, 
+  neuralmap$Weights, 
   Columns = 80,
   Lines = 60,
-  Toroid = FALSE
+  Toroid = TRUE
 )
 ustar=GeneralizedUmatrix::CalcUstarmatrix(UmatrixInformation4dens,pmatrix)
 GeneralizedUmatrix::plotTopographicMap(ustar, Cls =cls,
-                                        neuralmap_dens$BestMatches,
+                                        neuralmap$BestMatches,
                                        BmSize = 0.5
 )
     
